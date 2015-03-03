@@ -108,11 +108,11 @@ def print_items(vms, top):
 
 
 ITEMS = (
+    ('cpu', (lambda x: '%6d %%    ' % (x * 100))),  # align with humanize
     ('diskread', humanize(1, ['TiB/s', 'GiB/s', 'MiB/s', 'KiB/s', 'B/s  '])),
     ('diskwrite', humanize(1, ['TiB/s', 'GiB/s', 'MiB/s', 'KiB/s', 'B/s  '])),
     ('netin', humanize(8, ['Tbps ', 'Gbps ', 'Mbps ', 'Kbps ', 'bps  '])),
     ('netout', humanize(8, ['Tbps ', 'Gbps ', 'Mbps ', 'Kbps ', 'bps  '])),
-    ('cpu', (lambda x: '%6d %%    ' % (x * 100))),  # align with humanize
 )
 
 

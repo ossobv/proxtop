@@ -5,11 +5,11 @@ Proxmox resource monitor -- list top resource users of your proxmox VM
 platform.
 
 It will list columns of the top users of these resources:
+* cpu
 * diskread
 * diskwrite
 * netin
 * netout
-* cpu
 
 
 Requirements
@@ -53,3 +53,17 @@ See the help for more options:
                             year
       -g AGGREGATION, --aggregation AGGREGATION
                             RRD aggregation, can be one of: AVERAGE* | MAX
+
+
+TODO
+----
+
+* Add license.
+* Put it in PyPI.
+* Explain how server-side AGGREGATION affects the values
+  (or perhaps remove the AVG/MAX subtypes and show only one, based
+  on -g).
+* Explain how to use ``~/.proxtoprc`` for the ``password=PASSWORD``.
+* Add alternate means to supply hostname and password?
+* Add alternate modes of output?
+* Limit results to only one item (cpu, diskread, ...)?
