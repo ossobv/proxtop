@@ -1,0 +1,167 @@
+#!/usr/bin/env python
+# vim: set ts=8 sw=4 sts=4 et ai:
+# Copyright (C) OSSO B.V., by Walter Doekes 2015-03-03.
+from __future__ import print_function
+from argparse import ArgumentParser
+from getpass import getpass
+from os import path
+from proxmoxer import ProxmoxAPI
+from sys import stderr
+
+
+def humanize(multiplier, units):
+    def wrapped(num):
+        unitcopy = units[:]
+        num *= multiplier
+        while unitcopy:
+            unit = unitcopy.pop()
+            if num < 1024:
+                break
+            num /= 1024.0
+        return '%6.1f %s' % (num, unit)
+    return wrapped
+
+
+def checking_foreach(data, item):
+    """For some reason, the Proxmox API hands us crazy large values from
+    time to time when we use the month-timeframe."""
+    too_large = 0xffffffff  # 4 GiB/s..
+    valid, ignored = [], []
+    for row in data:
+        if row[item] <= too_large:
+            valid.append(row[item])
+        else:
+            ignored.append(row[item])
+    return valid, ignored
+
+
+def get_rrddata(proxmox, timeframe='hour', aggregation='AVERAGE',
+                only_vms=()):
+    vms = []
+    crap = {}
+    vms_data = proxmox.cluster.resources.get(type='vm')
+    for i, vm in enumerate(vms_data):
+        if only_vms and vm['name'] not in only_vms:
+            continue
+        if vm['status'] in ('stopped',):
+            continue
+        assert vm['status'] == 'running', vm
+
+        rrddata = proxmox.nodes(vm['node']).openvz(vm['vmid']).rrddata
+        data = rrddata.get(timeframe=timeframe, cf=aggregation)
+
+        # Values tend to be wrong for only a single row: ignore the VM.
+        if len(data) == 1:
+            crap[vm['name']] = ['single_row', 1]
+            vms.append((vm, dict((item, {'max': -1, 'avg': -1})
+                                 for item, humanize in ITEMS)))
+            continue
+
+        # For 'hour' timeframe, we get 70 entries: one entry per minute:
+        # len(data) == 70, (data[-1]['time'] - data[0]['time'] == 69 * 60),
+        # For 'month' timeframe, we get ~66 entries: one entry per 12h, but
+        # sometimes with gaps.
+        totals = {}
+
+        for item, humanize in ITEMS:
+            valid, ignored = checking_foreach(data, item)
+            totals[item] = {
+                'max': max(valid),
+                'avg': sum(valid) / float(len(valid)),
+            }
+            if ignored:
+                if vm['name'] not in crap:
+                    crap[vm['name']] = []
+                for value in ignored:
+                    crap[vm['name']].append((item, value))
+        vms.append((vm, totals))
+
+        # Progress.
+        stderr.write('% 3d%% loaded..\r' % (i * 100.0 / len(vms_data)))
+        stderr.flush()
+
+    return vms, crap
+
+
+def print_ignored(vms, crap, top):
+    print('INGORED DATA: %d/%d' % (len(crap), len(vms)))
+    print('------------------')
+    crap = crap.items()
+    crap.sort(key=(lambda x: len(x[1])), reverse=True)
+    for i, (vm_name, values) in enumerate(crap[0:top]):
+        print('#%d: %s  %r' %
+              (i, vm_name, values))
+    print()
+
+
+def print_items(vms, top):
+    for item, humanize in ITEMS:
+        for subtype in ('avg', 'max'):
+            print('SORTED BY: %s, %s' % (item, subtype))
+            print('------------------')
+            vms.sort(key=(lambda vm: vm[1][item][subtype]), reverse=True)
+            for i, (vminfo, vmstat) in enumerate(vms[0:top]):
+                print('#%d: %s  %s (%s)' %
+                      (i, humanize(vmstat[item][subtype]),
+                       vminfo['node'], vminfo['name']))
+            print()
+
+
+ITEMS = (
+    ('diskread', humanize(1, ['TiB/s', 'GiB/s', 'MiB/s', 'KiB/s', 'B/s  '])),
+    ('diskwrite', humanize(1, ['TiB/s', 'GiB/s', 'MiB/s', 'KiB/s', 'B/s  '])),
+    ('netin', humanize(8, ['Tbps ', 'Gbps ', 'Mbps ', 'Kbps ', 'bps  '])),
+    ('netout', humanize(8, ['Tbps ', 'Gbps ', 'Mbps ', 'Kbps ', 'bps  '])),
+    ('cpu', (lambda x: '%6d %%    ' % (x * 100))),  # align with humanize
+)
+
+
+def main():
+    parser = ArgumentParser()
+    parser.add_argument(
+        'hostname', action='store',
+        help='Use this API hostname (e.g. proxmox.example.com)')
+    parser.add_argument(
+        'username', action='store',
+        help='Use this API username (e.g. monitor@pve)')
+    parser.add_argument(
+        '-T', '--top', default=8, action='store', type=int,
+        help='Limit results to TOP VMs')
+    parser.add_argument(
+        '-t', '--timeframe', default='hour', action='store',
+        help='Timeframe, can be one of: hour* | day | week | month | year')
+    parser.add_argument(
+        '-g', '--aggregation', default='AVERAGE', action='store',
+        help='RRD aggregation, can be one of: AVERAGE* | MAX')
+    parser.add_argument(
+        'only_vms', nargs='*',
+        help='Limit results to these VMs')
+    args = parser.parse_args()
+
+    # Fetch password=PASS from ~/.proxtoprc or from console.
+    proxtoprc = path.expanduser('~/.proxtoprc')
+    args.password = None
+    if path.exists(proxtoprc):
+        with open(proxtoprc, 'r') as file_:
+            for line in file_:
+                if line.startswith('password='):
+                    args.password = line[9:].strip()
+                    break
+    if not args.password:
+        args.password = getpass('Password:')
+
+    # Log in, get the data, display it.
+    api = ProxmoxAPI(args.hostname, user=args.username,
+                     password=args.password, verify_ssl=False)
+
+    vms, crap = get_rrddata(
+        api, timeframe=args.timeframe, aggregation=args.aggregation,
+        only_vms=args.only_vms)
+
+    if crap:
+        print_ignored(vms, crap, top=args.top)
+    print_items(vms, top=args.top)
+
+
+if __name__ == '__main__':
+    main()
