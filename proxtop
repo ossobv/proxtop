@@ -8,6 +8,27 @@ from os import path
 from proxmoxer import ProxmoxAPI
 from sys import stderr
 
+# Workaround for older python-requests with proxmoxer.
+try:
+    # python-requests 2.5.3
+    from requests.packages import urllib3
+except ImportError:
+    # python-requests 2.2.1
+    try:
+        import requests
+    except ImportError:
+        raise
+    else:
+        import imp, sys, urllib3  # flake8: noqa
+        class DummyException(Exception):
+            pass
+        dummy_func = (lambda *args, **kwargs: None)
+        dummy_packages = imp.new_module('requests.packages')
+        dummy_packages.urllib3 = urllib3
+        urllib3.disable_warnings = dummy_func
+        urllib3.exceptions.InsecureRequestWarning = DummyException
+        requests.packages = dummy_packages
+
 
 def humanize(multiplier, units):
     def wrapped(num):
