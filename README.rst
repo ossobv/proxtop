@@ -25,7 +25,7 @@ Quick jump
 Requirements
 ------------
 
-.. code::
+::
 
     $ pip install proxmoxer  # tested with 0.1.7 and 0.2.0
     $ pip install requests   # tested with 2.2.1 and 2.5.3
@@ -35,7 +35,7 @@ Requirements
 Example
 -------
 
-.. code::
+::
 
     $ ./proxtop -t day proxmox.example.com monitor@pve
     Password:<enter password>
@@ -53,7 +53,7 @@ Example
 
 See the help for more options:
 
-.. code::
+::
 
     usage: proxtop [-h] [-T TOP] [-t TIMEFRAME] [-g AGGREGATION]
                    hostname username [only_vms [only_vms ...]]
