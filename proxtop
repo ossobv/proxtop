@@ -214,7 +214,22 @@ class ArgumentParser14191(ArgumentParser):
 
 
 def main():
-    parser = ArgumentParser14191()
+    # Fetch defaults from ~/.proxtoprc.
+    defaults = {'hostname': None, 'username': None, 'password': None}
+    proxtoprc = path.expanduser('~/.proxtoprc')
+    if path.exists(proxtoprc):
+        with open(proxtoprc, 'r') as file_:
+            for line in file_:
+                for key in defaults.keys():
+                    if line.startswith(key + '='):
+                        defaults[key] = line[(len(key) + 1):].strip()
+
+    parser = ArgumentParser14191(
+        description=('proxtop lists the top resource consumers on your '
+                     'Proxmox VM platform.'),
+        epilog=('Default values may be placed in ~/.proxtoprc. Lines should '
+                'look like: hostname=HOSTNAME, username=USERNAME, '
+                'password=PASSWORD'))
     parser.add_argument(
         'hostname', action='store',
         help='Use this API hostname (e.g. proxmox.example.com)')
@@ -233,18 +248,18 @@ def main():
     parser.add_argument(
         'only_vms', nargs='*',
         help='Limit results to these VMs')
-    args = parser.parse_args()
 
-    # Fetch password=PASS from ~/.proxtoprc or from console.
-    proxtoprc = path.expanduser('~/.proxtoprc')
-    args.password = None
-    if path.exists(proxtoprc):
-        with open(proxtoprc, 'r') as file_:
-            for line in file_:
-                if line.startswith('password='):
-                    args.password = line[9:].strip()
-                    break
-    if not args.password:
+    # Pass adjusted argv, based on defaults found in ~/.proxtoprc.
+    argv = sys.argv[1:]
+    if defaults['hostname'] and defaults['username']:
+        argv.insert(0, defaults['hostname'])
+        argv.insert(1, defaults['username'])
+    args = parser.parse_args(argv)
+
+    # Fetch password.
+    if defaults['password']:
+        args.password = defaults['password']
+    else:
         args.password = getpass('Password:')
 
     # Log in, get the data, display it.

@@ -58,8 +58,10 @@ See the help for more options:
     usage: proxtop [-h] [-T TOP] [-t TIMEFRAME] [-g AGGREGATION]
                    hostname username [only_vms [only_vms ...]]
 
+    proxtop lists the top resource consumers on your Proxmox VM platform.
+
     positional arguments:
-      hostname              Use this API hostname (e.g. raposso.example.com)
+      hostname              Use this API hostname (e.g. proxmox.example.com)
       username              Use this API username (e.g. monitor@pve)
       only_vms              Limit results to these VMs
 
@@ -71,6 +73,9 @@ See the help for more options:
                             year
       -g AGGREGATION, --aggregation AGGREGATION
                             RRD aggregation, can be one of: AVERAGE* | MAX
+
+    Default values may be placed in ~/.proxtoprc. Lines should look like:
+    hostname=HOSTNAME, username=USERNAME, password=PASSWORD
 
 
 
@@ -89,7 +94,5 @@ TODO
 * Explain how server-side AGGREGATION affects the values
   (or perhaps remove the AVG/MAX subtypes and show only one, based
   on -g).
-* Explain how to use ``~/.proxtoprc`` for the ``password=PASSWORD``.
-* Add alternate means to supply hostname and password?
 * Add alternate modes of output?
 * Limit results to only one item (cpu, diskread, ...)?
