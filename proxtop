@@ -1,7 +1,20 @@
 #!/usr/bin/env python
 # vim: set ts=8 sw=4 sts=4 et ai:
-# Copyright (C) OSSO B.V., by Walter Doekes 2015-03-03.
 from __future__ import print_function
+"""
+proxtop: Proxmox resource monitor -- list top resource consumers of your
+Proxmox VM platform.
+
+This is proxtop.  proxtop is free software: you can redistribute it
+and/or modify it under the terms of the GNU General Public License as
+published by the Free Software Foundation, version 3 or any later
+version.
+"""
+__author__ = 'Walter Doekes'
+__copyright__ = 'Copyright (C) Walter Doekes, OSSO B.V. 2015'
+__licence__ = 'GPLv3+'
+__version__ = '0.0.9'
+
 from argparse import ArgumentParser
 from getpass import getpass
 from os import path
@@ -17,7 +30,9 @@ except ImportError:
     try:
         import requests
     except ImportError:
-        raise
+        # ProxmoxAPI will bail out later, saying:
+        # Chosen backend requires 'requests' module
+        pass
     else:
         import imp, sys, urllib3  # flake8: noqa
         class DummyException(Exception):

@@ -1,25 +1,41 @@
 proxtop
 =======
 
-Proxmox resource monitor -- list top resource users of your proxmox VM
-platform.
+Proxmox resource monitor -- list top resource consumers of your Proxmox
+VM platform.
 
 It will list columns of the top users of these resources:
-* cpu
-* diskread
-* diskwrite
-* netin
-* netout
+ * cpu
+ * diskread
+ * diskwrite
+ * netin
+ * netout
+
+
+Quick jump
+----------
+
+* `Requirements`_
+* `Example`_
+* `License`_
+* `TODO`_
+
 
 
 Requirements
 ------------
 
-    $ pip install proxmoxer  # tested with 0.1.7
+.. code::
+
+    $ pip install proxmoxer  # tested with 0.1.7 and 0.2.0
+    $ pip install requests   # tested with 2.2.1 and 2.5.3
+
 
 
 Example
 -------
+
+.. code::
 
     $ ./proxtop -t day proxmox.example.com monitor@pve
     Password:<enter password>
@@ -37,14 +53,16 @@ Example
 
 See the help for more options:
 
+.. code::
+
     usage: proxtop [-h] [-T TOP] [-t TIMEFRAME] [-g AGGREGATION]
                    hostname username [only_vms [only_vms ...]]
-    
+
     positional arguments:
       hostname              Use this API hostname (e.g. raposso.example.com)
       username              Use this API username (e.g. monitor@pve)
       only_vms              Limit results to these VMs
-    
+
     optional arguments:
       -h, --help            show this help message and exit
       -T TOP, --top TOP     Limit results to TOP VMs
@@ -55,10 +73,19 @@ See the help for more options:
                             RRD aggregation, can be one of: AVERAGE* | MAX
 
 
+
+License
+-------
+
+proxtop is free software: you can redistribute it and/or modify it under
+the terms of the GNU General Public License as published by the Free
+Software Foundation, version 3 or any later version.
+
+
+
 TODO
 ----
 
-* Add license.
 * Put it in PyPI.
 * Explain how server-side AGGREGATION affects the values
   (or perhaps remove the AVG/MAX subtypes and show only one, based
