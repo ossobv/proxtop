@@ -86,7 +86,6 @@ Software Foundation, version 3 or any later version.
 TODO
 ----
 
-* Put it in PyPI.
 * Explain how server-side AGGREGATION affects the values
   (or perhaps remove the AVG/MAX subtypes and show only one, based
   on -g).
