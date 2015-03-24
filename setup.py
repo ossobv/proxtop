@@ -18,7 +18,7 @@ setup(
     data_files=[('', ['LICENSE.txt', 'README.rst'])],
     description='Proxmox resource monitor',
     long_description=long_description,
-    author='Walter Doekes',
+    author='Walter Doekes, OSSO B.V.',
     author_email='wjdoekes+proxtop@osso.nl',
     url='https://github.com/ossobv/proxtop',
     license='GPLv3+',
