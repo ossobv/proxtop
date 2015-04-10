@@ -1,8 +1,9 @@
-proxtop
-=======
+proxtop :: Proxmox resource monitor
+===================================
 
-Proxmox resource monitor -- list top resource consumers of your Proxmox
-VM platform.
+|pypi_version| |pypi_downloads|
+
+Proxtop lists the top resource consumers of your Proxmox VM platform.
 
 It will list columns of the top users of these resources:
  * cpu
@@ -15,27 +16,38 @@ It will list columns of the top users of these resources:
 Quick jump
 ----------
 
-* `Requirements`_
+* `Installation`_
 * `Example`_
 * `License`_
 * `TODO`_
 
 
 
-Requirements
+Installation
 ------------
 
-::
+Via pip:
+
+.. code-block:: console
+
+    $ pip install proxtop
+
+Via git:
+
+.. code-block:: console
 
     $ pip install proxmoxer  # tested with 0.1.7 and 0.2.0
     $ pip install requests   # tested with 2.2.1 and 2.5.3
+    $ git clone https://github.com/ossobv/proxtop.git
+    $ cd proxtop
+    $ python setup.py install
 
 
 
 Example
 -------
 
-::
+.. code-block:: console
 
     $ ./proxtop -t day proxmox.example.com monitor@pve
     Password:<enter password>
@@ -51,9 +63,10 @@ Example
     #1:     89 %      pve10 (acme-bugs-bunny)
     #2:     66 %      pve10 (acme-elmer-fudd)
 
+
 See the help for more options:
 
-::
+.. code-block:: console
 
     usage: proxtop [-h] [-T TOP] [-t TIMEFRAME] [-g AGGREGATION]
                    hostname username [only_vms [only_vms ...]]
@@ -96,3 +109,10 @@ TODO
   on -g).
 * Add alternate modes of output?
 * Limit results to only one item (cpu, diskread, ...)?
+
+
+.. |pypi_version| image:: https://pypip.in/version/proxtop/badge.svg
+    :target: https://pypi.python.org/pypi/proxtop
+
+.. |pypi_downloads| image:: https://pypip.in/download/proxtop/badge.svg
+    :target: https://pypi.python.org/pypi/proxtop
