@@ -15,11 +15,11 @@ __copyright__ = 'Copyright (C) Walter Doekes, OSSO B.V. 2015'
 __licence__ = 'GPLv3+'
 __version__ = '0.1.0'
 
+import sys
 from argparse import ArgumentParser
 from getpass import getpass
 from os import path
 from proxmoxer import ProxmoxAPI
-from sys import stderr
 
 # Workaround for older python-requests with proxmoxer.
 try:
@@ -34,7 +34,9 @@ except ImportError:
         # Chosen backend requires 'requests' module
         pass
     else:
-        import imp, sys, urllib3  # flake8: noqa
+        import imp
+        import urllib3
+
         class DummyException(Exception):
             pass
         dummy_func = (lambda *args, **kwargs: None)
@@ -113,8 +115,8 @@ def get_rrddata(proxmox, timeframe='hour', aggregation='AVERAGE',
         vms.append((vm, totals))
 
         # Progress.
-        stderr.write('% 3d%% loaded..\r' % (i * 100.0 / len(vms_data)))
-        stderr.flush()
+        sys.stderr.write('% 3d%% loaded..\r' % (i * 100.0 / len(vms_data)))
+        sys.stderr.flush()
 
     return vms, crap
 
