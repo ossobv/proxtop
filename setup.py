@@ -13,7 +13,7 @@ except IOError:
 
 setup(
     name='proxtop',
-    version='0.1.0',
+    version='0.1.1',
     scripts=['proxtop'],
     data_files=[('', ['LICENSE.txt', 'README.rst'])],
     description='Proxmox resource monitor',
