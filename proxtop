@@ -74,13 +74,17 @@ def checking_foreach(data, item):
 
 
 def get_rrddata(proxmox, timeframe='hour', aggregation='AVERAGE',
-                only_vms=()):
+                only_vms=(), partial_match=False):
     vms = []
     crap = {}
     vms_data = proxmox.cluster.resources.get(type='vm')
     for i, vm in enumerate(vms_data):
-        if only_vms and vm['name'] not in only_vms:
-            continue
+        if only_vms:
+            if partial_match and all(vm['name'].find(i) == -1
+                                     for i in only_vms):
+                continue
+            elif not partial_match and vm['name'] not in only_vms:
+                continue
         if vm['status'] in ('stopped',):
             continue
         assert vm['status'] == 'running', vm
@@ -248,6 +252,9 @@ def main():
         '-g', '--aggregation', default='AVERAGE', action='store',
         help='RRD aggregation, can be one of: AVERAGE* | MAX')
     parser.add_argument(
+        '--partial-match', default=False, action='store_true',
+        help='Match VMs by substring instead of equality')
+    parser.add_argument(
         'only_vms', nargs='*',
         help='Limit results to these VMs')
 
@@ -270,7 +277,7 @@ def main():
 
     vms, crap = get_rrddata(
         api, timeframe=args.timeframe, aggregation=args.aggregation,
-        only_vms=args.only_vms)
+        only_vms=args.only_vms, partial_match=args.partial_match)
 
     if crap:
         print_ignored(vms, crap, top=args.top)

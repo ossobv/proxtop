@@ -68,7 +68,7 @@ See the help for more options:
 
 .. code-block:: console
 
-    usage: proxtop [-h] [-T TOP] [-t TIMEFRAME] [-g AGGREGATION]
+    usage: proxtop [-h] [-T TOP] [-t TIMEFRAME] [-g AGGREGATION] [--partial-match]
                    hostname username [only_vms [only_vms ...]]
 
     proxtop lists the top resource consumers on your Proxmox VM platform.
@@ -86,6 +86,7 @@ See the help for more options:
                             year
       -g AGGREGATION, --aggregation AGGREGATION
                             RRD aggregation, can be one of: AVERAGE* | MAX
+      --partial-match       Match VMs by substring instead of equality
 
     Default values may be placed in ~/.proxtoprc. Lines should look like:
     hostname=HOSTNAME, username=USERNAME, password=PASSWORD
