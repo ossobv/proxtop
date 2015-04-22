@@ -2,7 +2,6 @@
 
 DATAFILES = LICENSE.txt README.rst
 PYFILES = proxtop
-DATAFILES = LICENSE.txt README.rst
 
 default:
 
