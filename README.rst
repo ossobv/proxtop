@@ -112,8 +112,8 @@ TODO
 * Limit results to only one item (cpu, diskread, ...)?
 
 
-.. |pypi_version| image:: https://pypip.in/version/proxtop/badge.svg
+.. |pypi_version| image:: https://img.shields.io/pypi/v/proxtop.svg
     :target: https://pypi.python.org/pypi/proxtop
 
-.. |pypi_downloads| image:: https://pypip.in/download/proxtop/badge.svg
+.. |pypi_downloads| image:: https://img.shields.io/pypi/dm/proxtop.svg
     :target: https://pypi.python.org/pypi/proxtop
