@@ -78,16 +78,32 @@ def get_rrddata(proxmox, timeframe='hour', aggregation='AVERAGE',
                 only_vms=(), partial_match=False):
     vms = []
     crap = {}
+    nodes_down = set()
+
     vms_data = proxmox.cluster.resources.get(type='vm')
     for i, vm in enumerate(vms_data):
+        # Find only certain hosts?
         if only_vms:
-            if partial_match and all(vm['name'].find(i) == -1
-                                     for i in only_vms):
+            if (partial_match and
+                    all(vm['name'].find(i) == -1 for i in only_vms)):
                 continue
             elif not partial_match and vm['name'] not in only_vms:
                 continue
+
+        # VM info without status? Node down?
+        if 'status' not in vm:
+            if vm['node'] not in nodes_down:
+                sys.stderr.write(
+                    'WARNING: no status for vm %s. Is node %s down? '
+                    'Ignoring further errors on that node.\n' %
+                    (vm['vmid'], vm['node']))
+                nodes_down.add(vm['node'])
+            continue
+
+        # Stopped VM?
         if vm['status'] in ('stopped',):
             continue
+
         assert vm['status'] == 'running', vm
 
         node = proxmox.nodes(vm['node'])

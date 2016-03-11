@@ -27,7 +27,7 @@ Quick jump
 * `Installation`_
 * `Example`_
 * `License`_
-* `TODO`_
+* `Future`_
 
 
 
@@ -110,8 +110,10 @@ Software Foundation, version 3 or any later version.
 
 
 
-TODO
-----
+Future
+------
+
+Possible future enhancements:
 
 * Explain how server-side AGGREGATION affects the values
   (or perhaps remove the AVG/MAX subtypes and show only one, based
