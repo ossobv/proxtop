@@ -12,6 +12,12 @@ It will list columns of the top users of these resources:
  * netin
  * netout
 
+*IMPORTANT CHANGES IN proxtop 0.2.0:*
+
+* The default port is now 443. This was tested with Proxmox 4.0-57.
+  If you want the old default port 8006 back, you may append ":8006"
+  to the hostname.
+
 
 Quick jump
 ----------
@@ -49,7 +55,7 @@ Example
 
 .. code-block:: console
 
-    $ ./proxtop -t day proxmox.example.com monitor@pve
+    $ ./proxtop -t day proxmox.example.com:8006 monitor@pve
     Password:<enter password>
     SORTED BY: diskread, avg
     ------------------
@@ -74,7 +80,7 @@ See the help for more options:
     proxtop lists the top resource consumers on your Proxmox VM platform.
 
     positional arguments:
-      hostname              Use this API hostname (e.g. proxmox.example.com)
+      hostname              Use this API hostname (e.g. proxmox.example.com[:443])
       username              Use this API username (e.g. monitor@pve)
       only_vms              Limit results to these VMs
 

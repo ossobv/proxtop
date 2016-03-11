@@ -239,7 +239,7 @@ def main():
                 'password=PASSWORD'))
     parser.add_argument(
         'hostname', action='store',
-        help='Use this API hostname (e.g. proxmox.example.com)')
+        help='Use this API hostname (e.g. proxmox.example.com[:443])')
     parser.add_argument(
         'username', action='store',
         help='Use this API username (e.g. monitor@pve)')
@@ -266,6 +266,12 @@ def main():
         argv.insert(1, defaults['username'])
     args = parser.parse_args(argv)
 
+    # Extract optional port from hostname.
+    if ':' in args.hostname:
+        hostname, port = args.hostname.split(':', 1)
+    else:
+        hostname, port = args.hostname, 443  # used to be 8006
+
     # Fetch password.
     if defaults['password']:
         args.password = defaults['password']
@@ -278,7 +284,7 @@ def main():
     warnings.simplefilter('once')
 
     # Log in, get the data, display it.
-    api = ProxmoxAPI(args.hostname, user=args.username,
+    api = ProxmoxAPI(hostname, port=port, user=args.username,
                      password=args.password, verify_ssl=False)
 
     vms, crap = get_rrddata(
