@@ -17,6 +17,8 @@ It will list columns of the top users of these resources:
 * The default port is now 443. This was tested with Proxmox 4.0-57.
   If you want the old default port 8006 back, you may append ":8006"
   to the hostname.
+* The VM container type is now used in the REST path: i.e. ``/qemu/``
+  (or lxc) instead of ``/openvz/``.
 
 
 Quick jump

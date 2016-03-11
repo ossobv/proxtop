@@ -90,8 +90,9 @@ def get_rrddata(proxmox, timeframe='hour', aggregation='AVERAGE',
             continue
         assert vm['status'] == 'running', vm
 
-        rrddata = proxmox.nodes(vm['node']).openvz(vm['vmid']).rrddata
-        data = rrddata.get(timeframe=timeframe, cf=aggregation)
+        node = proxmox.nodes(vm['node'])
+        container = getattr(node, vm['type'])(vm['vmid'])
+        data = container.rrddata.get(timeframe=timeframe, cf=aggregation)
 
         # Values tend to be wrong for only a single row: ignore the VM.
         if len(data) == 1:
