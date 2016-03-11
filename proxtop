@@ -16,6 +16,7 @@ __licence__ = 'GPLv3+'
 __version__ = '0.1.1'
 
 import sys
+import warnings
 from argparse import ArgumentParser
 from getpass import getpass
 from os import path
@@ -270,6 +271,11 @@ def main():
         args.password = defaults['password']
     else:
         args.password = getpass('Password:')
+
+    # It's nice that urllib3 and requests show SNIMissingWarning and
+    # InsecurePlatformWarning warnings, but we don't need them more than
+    # once.
+    warnings.simplefilter('once')
 
     # Log in, get the data, display it.
     api = ProxmoxAPI(args.hostname, user=args.username,
