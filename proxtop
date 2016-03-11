@@ -11,9 +11,9 @@ published by the Free Software Foundation, version 3 or any later
 version.
 """
 __author__ = 'Walter Doekes'
-__copyright__ = 'Copyright (C) Walter Doekes, OSSO B.V. 2015'
+__copyright__ = 'Copyright (C) Walter Doekes, OSSO B.V. 2015-2016'
 __licence__ = 'GPLv3+'
-__version__ = '0.1.1'
+__version__ = '0.2.0'
 
 import sys
 import warnings
