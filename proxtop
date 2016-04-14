@@ -104,7 +104,7 @@ def get_rrddata(proxmox, timeframe='hour', aggregation='AVERAGE',
         if vm['status'] in ('stopped',):
             continue
 
-        assert vm['status'] == 'running', vm
+        assert vm['status'] in ('running', 'paused'), vm
 
         node = proxmox.nodes(vm['node'])
         container = getattr(node, vm['type'])(vm['vmid'])
