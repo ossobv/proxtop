@@ -15,6 +15,7 @@ __copyright__ = 'Copyright (C) Walter Doekes, OSSO B.V. 2015-2016'
 __licence__ = 'GPLv3+'
 __version__ = '0.2.0'
 
+import os
 import sys
 import warnings
 from argparse import ArgumentParser
@@ -137,8 +138,9 @@ def get_rrddata(proxmox, timeframe='hour', aggregation='AVERAGE',
         vms.append((vm, totals))
 
         # Progress.
-        sys.stderr.write('% 3d%% loaded..\r' % (i * 100.0 / len(vms_data)))
-        sys.stderr.flush()
+        if os.isatty(sys.stdout.fileno()):
+            sys.stderr.write('% 3d%% loaded..\r' % (i * 100.0 / len(vms_data)))
+            sys.stderr.flush()
 
     return vms, crap
 
