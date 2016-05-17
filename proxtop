@@ -80,15 +80,16 @@ def get_rrddata(proxmox, timeframe='hour', aggregation='AVERAGE',
     vms = []
     crap = {}
     nodes_down = set()
+    uuid_map = {}
 
     vms_data = proxmox.cluster.resources.get(type='vm')
     for i, vm in enumerate(vms_data):
         # Find only certain hosts?
         if only_vms:
             if (partial_match and
-                    all(vm['name'].find(i) == -1 for i in only_vms)):
+                    all(vm.get('name', '').find(i) == -1 for i in only_vms)):
                 continue
-            elif not partial_match and vm['name'] not in only_vms:
+            elif not partial_match and vm.get('name') not in only_vms:
                 continue
 
         # VM info without status? Node down?
@@ -109,6 +110,17 @@ def get_rrddata(proxmox, timeframe='hour', aggregation='AVERAGE',
 
         node = proxmox.nodes(vm['node'])
         container = getattr(node, vm['type'])(vm['vmid'])
+
+        # Fetch UUIDs so we can complain about VMs without UUID.
+        smbios1 = container.config.get().get('smbios1', '')
+        uuid = ''.join(tmp[5:] for tmp in smbios1.split(',')
+                       if tmp.startswith('uuid=')) or None
+        assert vm['name'] not in uuid_map, (vm['name'], uuid_map)
+        # We could choose to check manufacturer and product too:
+        # uuid=648...a45,manufacturer=spindle,product=cacofonisk
+        uuid_map[vm['name']] = uuid
+
+        # Get the RRD values.
         data = container.rrddata.get(timeframe=timeframe, cf=aggregation)
 
         # Values tend to be wrong for only a single row: ignore the VM.
@@ -141,6 +153,21 @@ def get_rrddata(proxmox, timeframe='hour', aggregation='AVERAGE',
         if os.isatty(sys.stdout.fileno()):
             sys.stderr.write('% 3d%% loaded..\r' % (i * 100.0 / len(vms_data)))
             sys.stderr.flush()
+
+    # Loop over uuid_map and complain about VMs without value UUID.
+    def is_valid_uuid(uuid):
+        parts = uuid.split('-')
+        if ([len(i) for i in parts] == [8, 4, 4, 4, 12] and
+                all(i in '0123456789abcdef-' for i in uuid)):
+            return True
+        return False
+
+    invalid_uuid_vms = [
+        name for name, uuid in uuid_map.items() if not is_valid_uuid(uuid or '')]
+    invalid_uuid_vms.sort()
+    if invalid_uuid_vms:
+        print('WARNING: These VMs have invalid/unset UUIDs: %s' % (
+            ', '.join(invalid_uuid_vms),))
 
     return vms, crap
 
