@@ -75,6 +75,14 @@ def checking_foreach(data, item):
     return valid, ignored
 
 
+def is_valid_uuid(uuid):
+    parts = uuid.split('-')
+    if ([len(i) for i in parts] == [8, 4, 4, 4, 12] and
+            all(i in '0123456789abcdef-' for i in uuid)):
+        return True
+    return False
+
+
 def get_rrddata(proxmox, timeframe='hour', aggregation='AVERAGE',
                 only_vms=(), partial_match=False):
     vms = []
@@ -155,19 +163,27 @@ def get_rrddata(proxmox, timeframe='hour', aggregation='AVERAGE',
             sys.stderr.flush()
 
     # Loop over uuid_map and complain about VMs without value UUID.
-    def is_valid_uuid(uuid):
-        parts = uuid.split('-')
-        if ([len(i) for i in parts] == [8, 4, 4, 4, 12] and
-                all(i in '0123456789abcdef-' for i in uuid)):
-            return True
-        return False
-
-    invalid_uuid_vms = [
-        name for name, uuid in uuid_map.items() if not is_valid_uuid(uuid or '')]
+    valid_uuids, invalid_uuid_vms = [], []
+    for name, uuid in uuid_map.items():
+        if is_valid_uuid(uuid or ''):
+            valid_uuids.append(uuid)
+        else:
+            invalid_uuid_vms.append(name)
     invalid_uuid_vms.sort()
+    # Check validity.
     if invalid_uuid_vms:
         print('WARNING: These VMs have invalid/unset UUIDs: %s' % (
             ', '.join(invalid_uuid_vms),))
+    # Check for dupes.
+    if len(valid_uuids) != len(set(valid_uuids)):
+        tmp = set()
+        for test_uuid in valid_uuids:
+            if test_uuid in tmp:
+                tmp_vms = [name for name, uuid in uuid_map.items()
+                           if uuid == test_uuid]
+                print('WARNING: Duplicate UUID %s in use by these VMs: %s' % (
+                    test_uuid, ', '.join(tmp_vms)))
+            tmp.add(test_uuid)
 
     return vms, crap
 
