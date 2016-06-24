@@ -105,8 +105,8 @@ def get_rrddata(proxmox, timeframe='hour', aggregation='AVERAGE',
             if vm['node'] not in nodes_down:
                 sys.stderr.write(
                     'WARNING: no status for vm %s. Is node %s down? '
-                    'Ignoring further errors on that node.\n' %
-                    (vm['vmid'], vm['node']))
+                    'Ignoring further errors on that node.\n' % (
+                        vm['vmid'], vm['node']))
                 nodes_down.add(vm['node'])
             continue
 
@@ -150,6 +150,11 @@ def get_rrddata(proxmox, timeframe='hour', aggregation='AVERAGE',
                 'max': max(valid),
                 'avg': sum(valid) / float(len(valid)),
             }
+            if not valid:
+                sys.stderr.write(
+                    'WARNING: No sane RRD %s values for %s\n' % (
+                        item, vm['name']))
+                valid = [0]
             if ignored:
                 if vm['name'] not in crap:
                     crap[vm['name']] = []
@@ -172,8 +177,9 @@ def get_rrddata(proxmox, timeframe='hour', aggregation='AVERAGE',
     invalid_uuid_vms.sort()
     # Check validity.
     if invalid_uuid_vms:
-        print('WARNING: These VMs have invalid/unset UUIDs: %s' % (
-            ', '.join(invalid_uuid_vms),))
+        sys.stderr.write(
+            'WARNING: These VMs have invalid/unset UUIDs: %s\n' % (
+                ', '.join(invalid_uuid_vms),))
     # Check for dupes.
     if len(valid_uuids) != len(set(valid_uuids)):
         tmp = set()
@@ -181,8 +187,9 @@ def get_rrddata(proxmox, timeframe='hour', aggregation='AVERAGE',
             if test_uuid in tmp:
                 tmp_vms = [name for name, uuid in uuid_map.items()
                            if uuid == test_uuid]
-                print('WARNING: Duplicate UUID %s in use by these VMs: %s' % (
-                    test_uuid, ', '.join(tmp_vms)))
+                sys.stderr.write(
+                    'WARNING: Duplicate UUID %s in use by these VMs: %s\n' % (
+                        test_uuid, ', '.join(tmp_vms)))
             tmp.add(test_uuid)
 
     return vms, crap
