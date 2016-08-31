@@ -1,19 +1,13 @@
 #!/usr/bin/env python
 from distutils.core import setup
 
-try:
-    # PyPI prefers the readme as .txt
-    with open('README.txt') as file:
-        long_description = file.read()
-except IOError:
-    # We prefer it as .rst
-    with open('README.rst') as file:
-        long_description = file.read()
+with open('README.rst') as file:
+    long_description = file.read()
 
 
 setup(
     name='proxtop',
-    version='0.2.0',
+    version='0.2.1',
     scripts=['proxtop'],
     data_files=[('', ['LICENSE.txt', 'README.rst'])],
     description='Proxmox resource monitor',
