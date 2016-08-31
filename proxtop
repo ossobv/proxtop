@@ -132,6 +132,23 @@ def get_rrddata(proxmox, timeframe='hour', aggregation='AVERAGE',
         # uuid=648...a45,manufacturer=spindle,product=cacofonisk
         uuid_map[vm['name']] = uuid
 
+        # # Update uuid if it wasn't set?
+        # if not is_valid_uuid(uuid or ''):
+        #     from uuid import uuid4 as make_uuid
+        #     uuid = str(make_uuid())
+        #     if smbios1:
+        #         smbios1 = 'uuid=%s,%s' % (uuid, smbios1)
+        #     else:
+        #         smbios1 = 'uuid=%s' % (uuid,)
+        #     try:
+        #         container.config.post(smbios1=smbios1)
+        #     except:
+        #         sys.stderr.write(
+        #             'Could not update smbios1 to %r on %s\n' % (
+        #                 smbios1, vm['name']))
+        #     else:
+        #         print('UPDATED', smbios1, 'UPDATED on', vm['name'])
+
         # Get the RRD values.
         data = container.rrddata.get(timeframe=timeframe, cf=aggregation)
 
