@@ -167,15 +167,14 @@ def get_rrddata(proxmox, timeframe='hour', aggregation='AVERAGE',
 
         for item, humanize in ITEMS:
             valid, ignored = checking_foreach(data, item)
+            if not valid:
+                sys.stderr.write(
+                    'No sane RRD %s values for %s\n' % (item, vm['name']))
+                valid = [0]
             totals[item] = {
                 'max': max(valid),
                 'avg': sum(valid) / float(len(valid)),
             }
-            if not valid:
-                sys.stderr.write(
-                    'WARNING: No sane RRD %s values for %s\n' % (
-                        item, vm['name']))
-                valid = [0]
             if ignored:
                 if vm['name'] not in crap:
                     crap[vm['name']] = []
