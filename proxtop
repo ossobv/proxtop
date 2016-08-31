@@ -68,10 +68,14 @@ def checking_foreach(data, item):
     too_large = 0xffffffff  # 4 GiB/s..
     valid, ignored = [], []
     for row in data:
-        if row[item] <= too_large:
-            valid.append(row[item])
+        value = row.get(item)
+        if value is None:
+            # Happens if the machine is new.
+            pass
+        elif value <= too_large:
+            valid.append(value)
         else:
-            ignored.append(row[item])
+            ignored.append(value)
     return valid, ignored
 
 
