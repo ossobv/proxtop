@@ -228,8 +228,8 @@ def print_ignored(vms, crap, top):
 
 
 def print_items(vms, top):
-    for item, humanize in ITEMS:
-        for subtype in ('avg', 'max'):
+    for subtype in ('avg', 'max'):
+        for item, humanize in ITEMS:
             print('SORTED BY: %s, %s' % (item, subtype))
             print('------------------')
             vms.sort(key=(lambda vm: vm[1][item][subtype]), reverse=True)
