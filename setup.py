@@ -7,7 +7,7 @@ with open('README.rst') as file:
 
 setup(
     name='proxtop',
-    version='0.2.1',
+    version='0.2.2',
     scripts=['proxtop'],
     data_files=[('', ['LICENSE.txt', 'README.rst'])],
     description='Proxmox resource monitor',

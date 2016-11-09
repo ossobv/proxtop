@@ -21,7 +21,7 @@ from proxmoxer import ProxmoxAPI
 __author__ = 'Walter Doekes'
 __copyright__ = 'Copyright (C) Walter Doekes, OSSO B.V. 2015-2016'
 __licence__ = 'GPLv3+'
-__version__ = '0.2.1'
+__version__ = '0.2.2'
 
 
 # Workaround for older python-requests with proxmoxer.
