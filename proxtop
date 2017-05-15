@@ -61,6 +61,12 @@ def humanize(multiplier, units):
             num /= 1024.0
         return '%6.1f %s' % (num, unit)
     return wrapped
+humanize_bytes_per_second = humanize(
+    8, ['TiB/s', 'GiB/s', 'MiB/s', 'KiB/s', 'B/s  '])
+humanize_bits_per_second = humanize(
+    1, ['Tbps ', 'Gbps ', 'Mbps ', 'Kbps ', 'bps  '])
+humanize_percentage = (
+    lambda x: '%6d %%    ' % (x * 100))  # align with humanize
 
 
 def checking_foreach(data, item):
@@ -157,7 +163,7 @@ def get_rrddata(proxmox, timeframe='hour', aggregation='AVERAGE',
         if len(data) == 1:
             crap[vm['name']] = ['single_row', 1]
             vms.append((vm, dict((item, {'max': -1, 'avg': -1})
-                                 for item, humanize in ITEMS)))
+                                 for item, humanize_func in ITEMS)))
             continue
 
         # For 'hour' timeframe, we get 70 entries: one entry per minute:
@@ -166,7 +172,7 @@ def get_rrddata(proxmox, timeframe='hour', aggregation='AVERAGE',
         # sometimes with gaps.
         totals = {}
 
-        for item, humanize in ITEMS:
+        for item, humanize_func in ITEMS:
             valid, ignored = checking_foreach(data, item)
             if not valid:
                 sys.stderr.write(
@@ -229,23 +235,23 @@ def print_ignored(vms, crap, top):
 
 def print_items(vms, top):
     for subtype in ('avg', 'max'):
-        for item, humanize in ITEMS:
+        for item, humanize_func in ITEMS:
             print('SORTED BY: %s, %s' % (item, subtype))
             print('------------------')
             vms.sort(key=(lambda vm: vm[1][item][subtype]), reverse=True)
             for i, (vminfo, vmstat) in enumerate(vms[0:top]):
                 print('#%d: %s  %s (%s)' %
-                      (i, humanize(vmstat[item][subtype]),
+                      (i, humanize_func(vmstat[item][subtype]),
                        vminfo['node'], vminfo['name']))
             print()
 
 
 ITEMS = (
-    ('cpu', (lambda x: '%6d %%    ' % (x * 100))),  # align with humanize
-    ('diskread', humanize(1, ['TiB/s', 'GiB/s', 'MiB/s', 'KiB/s', 'B/s  '])),
-    ('diskwrite', humanize(1, ['TiB/s', 'GiB/s', 'MiB/s', 'KiB/s', 'B/s  '])),
-    ('netin', humanize(8, ['Tbps ', 'Gbps ', 'Mbps ', 'Kbps ', 'bps  '])),
-    ('netout', humanize(8, ['Tbps ', 'Gbps ', 'Mbps ', 'Kbps ', 'bps  '])),
+    ('cpu', humanize_percentage),
+    ('diskread', humanize_bytes_per_second),
+    ('diskwrite', humanize_bytes_per_second),
+    ('netin', humanize_bits_per_second),
+    ('netout', humanize_bits_per_second),
 )
 
 
@@ -310,81 +316,83 @@ class ArgumentParser14191(ArgumentParser):
         return ns
 
 
-def main():
-    # Fetch defaults from ~/.proxtoprc.
-    defaults = {'hostname': None, 'username': None, 'password': None}
-    proxtoprc = path.expanduser('~/.proxtoprc')
-    if path.exists(proxtoprc):
-        with open(proxtoprc, 'r') as file_:
-            for line in file_:
-                for key in defaults.keys():
-                    if line.startswith(key + '='):
-                        defaults[key] = line[(len(key) + 1):].strip()
+class Proxtop(object):
+    def __call__(self):
+        # Fetch defaults from ~/.proxtoprc.
+        defaults = {'hostname': None, 'username': None, 'password': None}
+        proxtoprc = path.expanduser('~/.proxtoprc')
+        if path.exists(proxtoprc):
+            with open(proxtoprc, 'r') as file_:
+                for line in file_:
+                    for key in defaults.keys():
+                        if line.startswith(key + '='):
+                            defaults[key] = line[(len(key) + 1):].strip()
 
-    parser = ArgumentParser14191(
-        description=('proxtop lists the top resource consumers on your '
-                     'Proxmox VM platform.'),
-        epilog=('Default values may be placed in ~/.proxtoprc. Lines should '
-                'look like: hostname=HOSTNAME, username=USERNAME, '
-                'password=PASSWORD'))
-    parser.add_argument(
-        'hostname', action='store',
-        help='Use this API hostname (e.g. proxmox.example.com[:443])')
-    parser.add_argument(
-        'username', action='store',
-        help='Use this API username (e.g. monitor@pve)')
-    parser.add_argument(
-        '-T', '--top', default=8, action='store', type=int,
-        help='Limit results to TOP VMs')
-    parser.add_argument(
-        '-t', '--timeframe', default='hour', action='store',
-        help='Timeframe, can be one of: hour* | day | week | month | year')
-    parser.add_argument(
-        '-g', '--aggregation', default='AVERAGE', action='store',
-        help='RRD aggregation, can be one of: AVERAGE* | MAX')
-    parser.add_argument(
-        '--partial-match', default=False, action='store_true',
-        help='Match VMs by substring instead of equality')
-    parser.add_argument(
-        'only_vms', nargs='*',
-        help='Limit results to these VMs')
+        parser = ArgumentParser14191(
+            description=('proxtop lists the top resource consumers on your '
+                         'Proxmox VM platform.'),
+            epilog=('Default values may be placed in ~/.proxtoprc. '
+                    'Lines should look like: hostname=HOSTNAME, '
+                    'username=USERNAME, password=PASSWORD'))
+        parser.add_argument(
+            'hostname', action='store',
+            help='Use this API hostname (e.g. proxmox.example.com[:443])')
+        parser.add_argument(
+            'username', action='store',
+            help='Use this API username (e.g. monitor@pve)')
+        parser.add_argument(
+            '-T', '--top', default=8, action='store', type=int,
+            help='Limit results to TOP VMs')
+        parser.add_argument(
+            '-t', '--timeframe', default='hour', action='store',
+            help='Timeframe, can be one of: hour* | day | week | month | year')
+        parser.add_argument(
+            '-g', '--aggregation', default='AVERAGE', action='store',
+            help='RRD aggregation, can be one of: AVERAGE* | MAX')
+        parser.add_argument(
+            '--partial-match', default=False, action='store_true',
+            help='Match VMs by substring instead of equality')
+        parser.add_argument(
+            'only_vms', nargs='*',
+            help='Limit results to these VMs')
 
-    # Pass adjusted argv, based on defaults found in ~/.proxtoprc.
-    argv = sys.argv[1:]
-    if defaults['hostname'] and defaults['username']:
-        argv.insert(0, defaults['hostname'])
-        argv.insert(1, defaults['username'])
-    args = parser.parse_args(argv)
+        # Pass adjusted argv, based on defaults found in ~/.proxtoprc.
+        argv = sys.argv[1:]
+        if defaults['hostname'] and defaults['username']:
+            argv.insert(0, defaults['hostname'])
+            argv.insert(1, defaults['username'])
+        args = parser.parse_args(argv)
 
-    # Extract optional port from hostname.
-    if ':' in args.hostname:
-        hostname, port = args.hostname.split(':', 1)
-    else:
-        hostname, port = args.hostname, 443  # used to be 8006
+        # Extract optional port from hostname.
+        if ':' in args.hostname:
+            hostname, port = args.hostname.split(':', 1)
+        else:
+            hostname, port = args.hostname, 443  # used to be 8006
 
-    # Fetch password.
-    if defaults['password']:
-        args.password = defaults['password']
-    else:
-        args.password = getpass('Password:')
+        # Fetch password.
+        if defaults['password']:
+            args.password = defaults['password']
+        else:
+            args.password = getpass('Password:')
 
-    # It's nice that urllib3 and requests show SNIMissingWarning and
-    # InsecurePlatformWarning warnings, but we don't need them more than
-    # once.
-    warnings.simplefilter('once')
+        # It's nice that urllib3 and requests show SNIMissingWarning and
+        # InsecurePlatformWarning warnings, but we don't need them more than
+        # once.
+        warnings.simplefilter('once')
 
-    # Log in, get the data, display it.
-    api = ProxmoxAPI(hostname, port=port, user=args.username,
-                     password=args.password, verify_ssl=False)
+        # Log in, get the data, display it.
+        api = ProxmoxAPI(hostname, port=port, user=args.username,
+                         password=args.password, verify_ssl=False)
 
-    vms, crap = get_rrddata(
-        api, timeframe=args.timeframe, aggregation=args.aggregation,
-        only_vms=args.only_vms, partial_match=args.partial_match)
+        vms, crap = get_rrddata(
+            api, timeframe=args.timeframe, aggregation=args.aggregation,
+            only_vms=args.only_vms, partial_match=args.partial_match)
 
-    if crap:
-        print_ignored(vms, crap, top=args.top)
-    print_items(vms, top=args.top)
+        if crap:
+            print_ignored(vms, crap, top=args.top)
+        print_items(vms, top=args.top)
 
 
 if __name__ == '__main__':
+    main = Proxtop()
     main()
