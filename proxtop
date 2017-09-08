@@ -124,6 +124,12 @@ def get_rrddata(proxmox, timeframe='hour', aggregation='AVERAGE',
         # Stopped VM?
         if vm['status'] in ('stopped',):
             continue
+        # Broken VM?
+        if vm['status'] in ('internal-error',):
+            sys.stderr.write(
+                'WARNING: vm %s says internal-error. Full status: %r\n' % (
+                    vm['vmid'], vm))
+            continue
 
         assert vm['status'] in ('running', 'paused'), vm
 
