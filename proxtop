@@ -124,11 +124,11 @@ def get_rrddata(proxmox, timeframe='hour', aggregation='AVERAGE',
         # Stopped VM?
         if vm['status'] in ('stopped',):
             continue
-        # Broken VM?
-        if vm['status'] in ('internal-error',):
+        # Broken VM? Prelaunch? What is this?
+        if vm['status'] in ('internal-error', 'prelaunch'):
             sys.stderr.write(
-                'WARNING: vm %s says internal-error. Full status: %r\n' % (
-                    vm['vmid'], vm))
+                'WARNING: vm %s says %s. Full status: %r\n' % (
+                    vm['vmid'], vm['status'], vm))
             continue
 
         assert vm['status'] in ('running', 'paused'), vm
