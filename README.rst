@@ -12,6 +12,13 @@ It will list columns of the top users of these resources:
  * netin
  * netout
 
+*IMPORTANT CHANGES IN proxtop 0.3.0:*
+
+* Shows only one of AVERAGE, MEDIAN, MAX now. See the -g option.
+* The --partial-match option has been removed in favor of globbing
+  (e.g. ``*server-name*``).
+* The default output is now MEDIAN.
+
 *IMPORTANT CHANGES IN proxtop 0.2.0:*
 
 * The default port is now 443. This was tested with Proxmox 4.0-57.
@@ -76,7 +83,8 @@ See the help for more options:
 
 .. code-block:: console
 
-    usage: proxtop [-h] [-T TOP] [-t TIMEFRAME] [-g AGGREGATION] [--partial-match]
+    usage: proxtop [-h] [-T TOP] [-t TIMEFRAME] [-g AGGREGATION]
+                   [--only-storage ONLY_STORAGE]
                    hostname username [only_vms [only_vms ...]]
 
     proxtop lists the top resource consumers on your Proxmox VM platform.
@@ -84,7 +92,7 @@ See the help for more options:
     positional arguments:
       hostname              Use this API hostname (e.g. proxmox.example.com[:443])
       username              Use this API username (e.g. monitor@pve)
-      only_vms              Limit results to these VMs
+      only_vms              Limit results to these VM names (globbing is allowed)
 
     optional arguments:
       -h, --help            show this help message and exit
@@ -93,12 +101,13 @@ See the help for more options:
                             Timeframe, can be one of: hour* | day | week | month |
                             year
       -g AGGREGATION, --aggregation AGGREGATION
-                            RRD aggregation, can be one of: AVERAGE* | MAX
-      --partial-match       Match VMs by substring instead of equality
+                            RRD aggregation, can be one of: AVERAGE | MAX |
+                            MEDIAN*
+      --only-storage ONLY_STORAGE
+                            Filter VMs by storage glob (e.g. "nfs03*")
 
     Default values may be placed in ~/.proxtoprc. Lines should look like:
     hostname=HOSTNAME, username=USERNAME, password=PASSWORD
-
 
 
 License

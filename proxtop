@@ -11,17 +11,23 @@ published by the Free Software Foundation, version 3 or any later
 version.
 """
 import os
+import re
 import sys
 import warnings
 from argparse import ArgumentParser
+from fnmatch import fnmatch
 from getpass import getpass
 from os import path
 from proxmoxer import ProxmoxAPI
 
 __author__ = 'Walter Doekes'
-__copyright__ = 'Copyright (C) Walter Doekes, OSSO B.V. 2015-2016'
+__copyright__ = 'Copyright (C) Walter Doekes, OSSO B.V. 2015-2019'
 __licence__ = 'GPLv3+'
-__version__ = '0.2.2'
+__version__ = '0.3.0'
+
+PROXMOX_VOLUME_TYPES = ('ide', 'sata', 'scsi', 'virtio')
+PROXMOX_VOLUME_TYPES_RE = re.compile(  # "scsi0", but not "scsihw"
+    r'^({})\d+$'.format('|'.join(PROXMOX_VOLUME_TYPES)))
 
 
 # Workaround for older python-requests with proxmoxer.
@@ -72,7 +78,7 @@ humanize_percentage = (
 def checking_foreach(data, item):
     """For some reason, the Proxmox API hands us crazy large values from
     time to time when we use the month-timeframe."""
-    too_large = 0xffffffff  # 4 GiB/s..
+    too_large = 0x3fffffffff  # 256 GiB/s..
     valid, ignored = [], []
     for row in data:
         value = row.get(item)
@@ -95,20 +101,27 @@ def is_valid_uuid(uuid):
 
 
 def get_rrddata(proxmox, timeframe='hour', aggregation='AVERAGE',
-                only_vms=(), partial_match=False):
+                only_names=None, only_storage=None):
     vms = []
     crap = {}
     nodes_down = set()
     uuid_map = {}
 
     vms_data = proxmox.cluster.resources.get(type='vm')
-    for i, vm in enumerate(vms_data):
+    for vm_index, vm in enumerate(vms_data):
         # Find only certain hosts?
-        if only_vms:
-            if (partial_match and
-                    all(vm.get('name', '').find(i) == -1 for i in only_vms)):
+        if only_names:
+            if not any(fnmatch(vm.get('name', ''), i) for i in only_names):
                 continue
-            elif not partial_match and vm.get('name') not in only_vms:
+
+        # Find only hosts with specific storage?
+        if only_storage:
+            volumes = [
+                kw for kw in (
+                    proxmox.nodes(vm.get('node')).qemu(vm.get('vmid'))
+                    .pending.get())
+                if PROXMOX_VOLUME_TYPES_RE.match(kw['key']) and 'value' in kw]
+            if not any(fnmatch(i['value'], only_storage) for i in volumes):
                 continue
 
         # VM info without status? Node down?
@@ -163,7 +176,10 @@ def get_rrddata(proxmox, timeframe='hour', aggregation='AVERAGE',
         #         print('UPDATED', smbios1, 'UPDATED on', vm['name'])
 
         # Get the RRD values.
-        data = container.rrddata.get(timeframe=timeframe, cf=aggregation)
+        rrd_aggregation = aggregation
+        if rrd_aggregation == 'MEDIAN':
+            rrd_aggregation = 'AVERAGE'  # or 'MAX'?
+        data = container.rrddata.get(timeframe=timeframe, cf=rrd_aggregation)
 
         # Values tend to be wrong for only a single row: ignore the VM.
         if len(data) == 1:
@@ -179,6 +195,13 @@ def get_rrddata(proxmox, timeframe='hour', aggregation='AVERAGE',
         totals = {}
 
         for item, humanize_func in ITEMS:
+            median = list(sorted([i[item] for i in data if item in i]))
+            half = len(median) // 2
+            if len(median) % 1:
+                median = median[half]
+            else:
+                median = (median[half] + median[half + 1]) / 2.0
+
             valid, ignored = checking_foreach(data, item)
             if not valid:
                 sys.stderr.write(
@@ -186,6 +209,7 @@ def get_rrddata(proxmox, timeframe='hour', aggregation='AVERAGE',
                 valid = [0]
             totals[item] = {
                 'max': max(valid),
+                'med': median,
                 'avg': sum(valid) / float(len(valid)),
             }
             if ignored:
@@ -193,11 +217,13 @@ def get_rrddata(proxmox, timeframe='hour', aggregation='AVERAGE',
                     crap[vm['name']] = []
                 for value in ignored:
                     crap[vm['name']].append((item, value))
+
         vms.append((vm, totals))
 
         # Progress.
         if os.isatty(sys.stdout.fileno()):
-            sys.stderr.write('% 3d%% loaded..\r' % (i * 100.0 / len(vms_data)))
+            sys.stderr.write('% 3d%% loaded..\r' % (
+                vm_index * 100.0 / len(vms_data)))
             sys.stderr.flush()
 
     # Loop over uuid_map and complain about VMs without value UUID.
@@ -239,17 +265,19 @@ def print_ignored(vms, crap, top):
     print()
 
 
-def print_items(vms, top):
-    for subtype in ('avg', 'max'):
-        for item, humanize_func in ITEMS:
-            print('SORTED BY: %s, %s' % (item, subtype))
-            print('------------------')
-            vms.sort(key=(lambda vm: vm[1][item][subtype]), reverse=True)
-            for i, (vminfo, vmstat) in enumerate(vms[0:top]):
-                print('#%d: %s  %s (%s)' %
-                      (i, humanize_func(vmstat[item][subtype]),
-                       vminfo['node'], vminfo['name']))
-            print()
+def print_items(vms, top, aggregation):
+    # for subtype in ('avg', 'med', 'max'):
+    subtype = {'AVERAGE': 'avg', 'MEDIAN': 'med', 'MAX': 'max'}[aggregation]
+
+    for item, humanize_func in ITEMS:
+        print('SORTED BY: %s, %s' % (item, subtype))
+        print('------------------')
+        vms.sort(key=(lambda vm: vm[1][item][subtype]), reverse=True)
+        for i, (vminfo, vmstat) in enumerate(vms[0:top]):
+            print('#%d: %s  %s (%s)' %
+                  (i, humanize_func(vmstat[item][subtype]),
+                   vminfo['node'], vminfo['name']))
+        print()
 
 
 ITEMS = (
@@ -353,14 +381,14 @@ class Proxtop(object):
             '-t', '--timeframe', default='hour', action='store',
             help='Timeframe, can be one of: hour* | day | week | month | year')
         parser.add_argument(
-            '-g', '--aggregation', default='AVERAGE', action='store',
-            help='RRD aggregation, can be one of: AVERAGE* | MAX')
+            '-g', '--aggregation', default='MEDIAN', action='store',
+            help='RRD aggregation, can be one of: AVERAGE | MAX | MEDIAN*')
         parser.add_argument(
-            '--partial-match', default=False, action='store_true',
-            help='Match VMs by substring instead of equality')
+            '--only-storage', default=None, action='store',
+            help='Filter VMs by storage glob (e.g. "nfs03*")')
         parser.add_argument(
             'only_vms', nargs='*',
-            help='Limit results to these VMs')
+            help='Limit results to these VM names (globbing is allowed)')
 
         # Pass adjusted argv, based on defaults found in ~/.proxtoprc.
         argv = sys.argv[1:]
@@ -392,11 +420,11 @@ class Proxtop(object):
 
         vms, crap = get_rrddata(
             api, timeframe=args.timeframe, aggregation=args.aggregation,
-            only_vms=args.only_vms, partial_match=args.partial_match)
+            only_names=args.only_vms, only_storage=args.only_storage)
 
         if crap:
             print_ignored(vms, crap, top=args.top)
-        print_items(vms, top=args.top)
+        print_items(vms, top=args.top, aggregation=args.aggregation)
 
 
 if __name__ == '__main__':
