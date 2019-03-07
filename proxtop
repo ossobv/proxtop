@@ -19,16 +19,12 @@ from fnmatch import fnmatch
 from getpass import getpass
 from os import path
 from proxmoxer import ProxmoxAPI
+from time import time
 
 __author__ = 'Walter Doekes'
 __copyright__ = 'Copyright (C) Walter Doekes, OSSO B.V. 2015-2019'
 __licence__ = 'GPLv3+'
 __version__ = '0.3.0'
-
-PROXMOX_VOLUME_TYPES = ('ide', 'sata', 'scsi', 'virtio')
-PROXMOX_VOLUME_TYPES_RE = re.compile(  # "scsi0", but not "scsihw"
-    r'^({})\d+$'.format('|'.join(PROXMOX_VOLUME_TYPES)))
-
 
 # Workaround for older python-requests with proxmoxer.
 try:
@@ -67,12 +63,31 @@ def humanize(multiplier, units):
             num /= 1024.0
         return '%6.1f %s' % (num, unit)
     return wrapped
-humanize_bytes_per_second = humanize(
+humanize_bytes_per_second = humanize(  # noqa
     8, ['TiB/s', 'GiB/s', 'MiB/s', 'KiB/s', 'B/s  '])
 humanize_bits_per_second = humanize(
     1, ['Tbps ', 'Gbps ', 'Mbps ', 'Kbps ', 'bps  '])
 humanize_percentage = (
     lambda x: '%6d %%    ' % (x * 100))  # align with humanize
+
+
+PROXMOX_VOLUME_TYPES = ('ide', 'sata', 'scsi', 'virtio')
+PROXMOX_VOLUME_TYPES_RE = re.compile(  # "scsi0", but not "scsihw"
+    r'^({})\d+$'.format('|'.join(PROXMOX_VOLUME_TYPES)))
+
+ITEMS = (
+    ('cpu', humanize_percentage),
+    ('diskread', humanize_bytes_per_second),
+    ('diskwrite', humanize_bytes_per_second),
+    ('netin', humanize_bits_per_second),
+    ('netout', humanize_bits_per_second),
+    # 'time': rrd sample time
+    # 'disk': 0 ?
+    # 'maxcpu': cpu-cores * cpu-threads (static)
+    # 'maxdisk': total size of all combined disks (static)
+    # 'maxmem': total memory (static)
+    # 'mem': memory usage
+)
 
 
 def checking_foreach(data, item):
@@ -109,6 +124,12 @@ def get_rrddata(proxmox, timeframe='hour', aggregation='AVERAGE',
 
     vms_data = proxmox.cluster.resources.get(type='vm')
     for vm_index, vm in enumerate(vms_data):
+        # Progress.
+        if vm_index % 16 == 0 and os.isatty(sys.stderr.fileno()):
+            sys.stderr.write('% 3d%% loaded..\r' % (
+                vm_index * 100.0 / len(vms_data)))
+            sys.stderr.flush()
+
         # Find only certain hosts?
         if only_names:
             if not any(fnmatch(vm.get('name', ''), i) for i in only_names):
@@ -176,10 +197,15 @@ def get_rrddata(proxmox, timeframe='hour', aggregation='AVERAGE',
         #         print('UPDATED', smbios1, 'UPDATED on', vm['name'])
 
         # Get the RRD values.
-        rrd_aggregation = aggregation
-        if rrd_aggregation == 'MEDIAN':
-            rrd_aggregation = 'AVERAGE'  # or 'MAX'?
-        data = container.rrddata.get(timeframe=timeframe, cf=rrd_aggregation)
+        rrd_aggregation = (  # MEDIAN does not exist, choose MAX/AVERAGE
+            'AVERAGE' if aggregation == 'MEDIAN' else aggregation)
+        rrd_timeframe = (  # 5min does not exist, choose hour
+            'hour' if timeframe == '5min' else timeframe)
+        data = container.rrddata.get(
+            timeframe=rrd_timeframe, cf=rrd_aggregation)
+        if timeframe == '5min':
+            recently = time() - (5 * 60)
+            data = [i for i in data if i['time'] >= recently]
 
         # Values tend to be wrong for only a single row: ignore the VM.
         if len(data) == 1:
@@ -219,12 +245,6 @@ def get_rrddata(proxmox, timeframe='hour', aggregation='AVERAGE',
                     crap[vm['name']].append((item, value))
 
         vms.append((vm, totals))
-
-        # Progress.
-        if os.isatty(sys.stdout.fileno()):
-            sys.stderr.write('% 3d%% loaded..\r' % (
-                vm_index * 100.0 / len(vms_data)))
-            sys.stderr.flush()
 
     # Loop over uuid_map and complain about VMs without value UUID.
     valid_uuids, invalid_uuid_vms = [], []
@@ -278,15 +298,6 @@ def print_items(vms, top, aggregation):
                   (i, humanize_func(vmstat[item][subtype]),
                    vminfo['node'], vminfo['name']))
         print()
-
-
-ITEMS = (
-    ('cpu', humanize_percentage),
-    ('diskread', humanize_bytes_per_second),
-    ('diskwrite', humanize_bytes_per_second),
-    ('netin', humanize_bits_per_second),
-    ('netout', humanize_bits_per_second),
-)
 
 
 class ArgumentParser14191(ArgumentParser):
@@ -379,9 +390,11 @@ class Proxtop(object):
             help='Limit results to TOP VMs')
         parser.add_argument(
             '-t', '--timeframe', default='hour', action='store',
-            help='Timeframe, can be one of: hour* | day | week | month | year')
+            choices=('5min', 'hour', 'day', 'week', 'month', 'year'),
+            help='Timeframe, can be one of: 5min | hour* | day | week | month | year')
         parser.add_argument(
             '-g', '--aggregation', default='MEDIAN', action='store',
+            choices=('AVERAGE', 'MAX', 'MEDIAN'),
             help='RRD aggregation, can be one of: AVERAGE | MAX | MEDIAN*')
         parser.add_argument(
             '--only-storage', default=None, action='store',
