@@ -18,7 +18,7 @@ from argparse import ArgumentParser
 from fnmatch import fnmatch
 from getpass import getpass
 from os import path
-from proxmoxer import ProxmoxAPI
+from proxmoxer import ProxmoxAPI, ResourceException
 from time import time
 
 __author__ = 'Walter Doekes'
@@ -115,69 +115,106 @@ def is_valid_uuid(uuid):
     return False
 
 
-def get_rrddata(proxmox, timeframe='hour', aggregation='AVERAGE',
-                only_names=None, only_storage=None):
-    vms = []
-    crap = {}
-    nodes_down = set()
-    uuid_map = {}
+class DataFetcher(object):
+    def __init__(self, proxmox):
+        self.proxmox = proxmox
+        self.timeframe = 'hour'
+        self.aggregation = 'AVERAGE'
+        self.only_names = None
+        self.only_storage = None
 
-    vms_data = proxmox.cluster.resources.get(type='vm')
-    for vm_index, vm in enumerate(vms_data):
-        # Progress.
-        if vm_index % 16 == 0 and os.isatty(sys.stderr.fileno()):
-            sys.stderr.write('% 3d%% loaded..\r' % (
-                vm_index * 100.0 / len(vms_data)))
-            sys.stderr.flush()
+    def set_timeframe(self, timeframe):
+        self.timeframe = timeframe
 
+    def set_aggregation(self, aggregation):
+        self.aggregation = aggregation
+
+    def limit_vms(self, names):
+        self.only_names = names
+
+    def limit_storage(self, storage):
+        self.only_storage = storage
+
+    def fetch(self):
+        self._vms = []
+        self._crap = {}
+        self._nodes_down = set()
+        self._uuid_map = {}
+
+        vms_data = self.proxmox.cluster.resources.get(type='vm')
+        for vm_index, vm in enumerate(vms_data):
+            # Progress.
+            if vm_index % 16 == 0 and os.isatty(sys.stderr.fileno()):
+                sys.stderr.write('% 3d%% loaded..\r' % (
+                    vm_index * 100.0 / len(vms_data)))
+                sys.stderr.flush()
+
+            try:
+                self._process(vm)
+            except ResourceException as e:
+                raise ResourceException('%s (for vm %s (%s))' % (
+                    e.args[0], vm['name'], vm['id']))
+
+        self._check_uuid_map()
+
+        return self._vms, self._crap
+
+    def _process(self, vm):
         # Find only certain hosts?
-        if only_names:
-            if not any(fnmatch(vm.get('name', ''), i) for i in only_names):
-                continue
+        if self.only_names:
+            if not any(
+                    fnmatch(vm.get('name', ''), i) for i in self.only_names):
+                return
 
         # Find only hosts with specific storage?
-        if only_storage:
+        if self.only_storage:
             volumes = [
                 kw for kw in (
-                    proxmox.nodes(vm.get('node')).qemu(vm.get('vmid'))
+                    self.proxmox.nodes(vm.get('node')).qemu(vm.get('vmid'))
                     .pending.get())
                 if PROXMOX_VOLUME_TYPES_RE.match(kw['key']) and 'value' in kw]
-            if not any(fnmatch(i['value'], only_storage) for i in volumes):
-                continue
+            if not any(
+                    fnmatch(i['value'], self.only_storage) for i in volumes):
+                return
 
         # VM info without status? Node down?
         if 'status' not in vm:
-            if vm['node'] not in nodes_down:
+            if vm['node'] not in self._nodes_down:
                 sys.stderr.write(
                     'WARNING: no status for vm %s. Is node %s down? '
                     'Ignoring further errors on that node.\n' % (
                         vm['vmid'], vm['node']))
-                nodes_down.add(vm['node'])
-            continue
+                self._nodes_down.add(vm['node'])
+            return
 
         # Stopped VM?
         if vm['status'] in ('stopped',):
-            continue
+            return
+
         # Broken VM? Prelaunch? What is this?
         if vm['status'] in ('internal-error', 'prelaunch'):
             sys.stderr.write(
                 'WARNING: vm %s says %s. Full status: %r\n' % (
                     vm['vmid'], vm['status'], vm))
-            continue
+            return
 
+        # Add stats.
+        self._add_vm(vm)
+
+    def _add_vm(self, vm):
         assert vm['status'] in ('running', 'paused'), vm
 
-        node = proxmox.nodes(vm['node'])
+        node = self.proxmox.nodes(vm['node'])
         container = getattr(node, vm['type'])(vm['vmid'])
 
         # Fetch UUIDs so we can complain about VMs without UUID.
         smbios1 = container.config.get().get('smbios1', '')
         uuid = ''.join(tmp[5:] for tmp in smbios1.split(',')
                        if tmp.startswith('uuid=')) or None
-        assert vm['name'] not in uuid_map, (vm['name'], uuid_map)
+        assert vm['name'] not in self._uuid_map, (vm['name'], self._uuid_map)
         # We could choose to check manufacturer and product too:
         # uuid=648...a45,manufacturer=spindle,product=cacofonisk
-        uuid_map[vm['name']] = uuid
+        self._uuid_map[vm['name']] = uuid
 
         # # Update uuid if it wasn't set?
         # if not is_valid_uuid(uuid or ''):
@@ -198,21 +235,22 @@ def get_rrddata(proxmox, timeframe='hour', aggregation='AVERAGE',
 
         # Get the RRD values.
         rrd_aggregation = (  # MEDIAN does not exist, choose MAX/AVERAGE
-            'AVERAGE' if aggregation == 'MEDIAN' else aggregation)
+            'AVERAGE' if self.aggregation == 'MEDIAN' else self.aggregation)
         rrd_timeframe = (  # 5min does not exist, choose hour
-            'hour' if timeframe == '5min' else timeframe)
+            'hour' if self.timeframe == '5min' else self.timeframe)
         data = container.rrddata.get(
             timeframe=rrd_timeframe, cf=rrd_aggregation)
-        if timeframe == '5min':
+        if self.timeframe == '5min':
             recently = time() - (5 * 60)
             data = [i for i in data if i['time'] >= recently]
 
         # Values tend to be wrong for only a single row: ignore the VM.
         if len(data) == 1:
-            crap[vm['name']] = ['single_row', 1]
-            vms.append((vm, dict((item, {'max': -1, 'avg': -1})
-                                 for item, humanize_func in ITEMS)))
-            continue
+            self._crap[vm['name']] = ['single_row', 1]
+            self._vms.append((vm, dict(
+                (item, {'max': -1, 'avg': -1})
+                for item, humanize_func in ITEMS)))
+            return
 
         # For 'hour' timeframe, we get 70 entries: one entry per minute:
         # len(data) == 70, (data[-1]['time'] - data[0]['time'] == 69 * 60),
@@ -239,39 +277,38 @@ def get_rrddata(proxmox, timeframe='hour', aggregation='AVERAGE',
                 'avg': sum(valid) / float(len(valid)),
             }
             if ignored:
-                if vm['name'] not in crap:
-                    crap[vm['name']] = []
+                if vm['name'] not in self._crap:
+                    self._crap[vm['name']] = []
                 for value in ignored:
-                    crap[vm['name']].append((item, value))
+                    self._crap[vm['name']].append((item, value))
 
-        vms.append((vm, totals))
+        self._vms.append((vm, totals))
 
-    # Loop over uuid_map and complain about VMs without value UUID.
-    valid_uuids, invalid_uuid_vms = [], []
-    for name, uuid in uuid_map.items():
-        if is_valid_uuid(uuid or ''):
-            valid_uuids.append(uuid)
-        else:
-            invalid_uuid_vms.append(name)
-    invalid_uuid_vms.sort()
-    # Check validity.
-    if invalid_uuid_vms:
-        sys.stderr.write(
-            'WARNING: These VMs have invalid/unset UUIDs: %s\n' % (
-                ', '.join(invalid_uuid_vms),))
-    # Check for dupes.
-    if len(valid_uuids) != len(set(valid_uuids)):
-        tmp = set()
-        for test_uuid in valid_uuids:
-            if test_uuid in tmp:
-                tmp_vms = [name for name, uuid in uuid_map.items()
-                           if uuid == test_uuid]
-                sys.stderr.write(
-                    'WARNING: Duplicate UUID %s in use by these VMs: %s\n' % (
-                        test_uuid, ', '.join(tmp_vms)))
-            tmp.add(test_uuid)
-
-    return vms, crap
+    def _check_uuid_map(self):
+        # Loop over uuid_map and complain about VMs without value UUID.
+        valid_uuids, invalid_uuid_vms = [], []
+        for name, uuid in self._uuid_map.items():
+            if is_valid_uuid(uuid or ''):
+                valid_uuids.append(uuid)
+            else:
+                invalid_uuid_vms.append(name)
+        invalid_uuid_vms.sort()
+        # Check validity.
+        if invalid_uuid_vms:
+            sys.stderr.write(
+                'WARNING: These VMs have invalid/unset UUIDs: %s\n' % (
+                    ', '.join(invalid_uuid_vms),))
+        # Check for dupes.
+        if len(valid_uuids) != len(set(valid_uuids)):
+            tmp = set()
+            for test_uuid in valid_uuids:
+                if test_uuid in tmp:
+                    tmp_vms = [name for name, uuid in self._uuid_map.items()
+                               if uuid == test_uuid]
+                    sys.stderr.write(
+                        'WARNING: Duplicate UUID %s in use by these VMs: '
+                        '%s\n' % (test_uuid, ', '.join(tmp_vms)))
+                tmp.add(test_uuid)
 
 
 def print_ignored(vms, crap, top):
@@ -391,11 +428,11 @@ class Proxtop(object):
         parser.add_argument(
             '-t', '--timeframe', default='hour', action='store',
             choices=('5min', 'hour', 'day', 'week', 'month', 'year'),
-            help='Timeframe, can be one of: 5min | hour* | day | week | month | year')
+            help='Timeframe; defaults to: hour')
         parser.add_argument(
             '-g', '--aggregation', default='MEDIAN', action='store',
             choices=('AVERAGE', 'MAX', 'MEDIAN'),
-            help='RRD aggregation, can be one of: AVERAGE | MAX | MEDIAN*')
+            help='RRD aggregation, defaults to: MEDIAN')
         parser.add_argument(
             '--only-storage', default=None, action='store',
             help='Filter VMs by storage glob (e.g. "nfs03*")')
@@ -431,9 +468,14 @@ class Proxtop(object):
         api = ProxmoxAPI(hostname, port=port, user=args.username,
                          password=args.password, verify_ssl=False)
 
-        vms, crap = get_rrddata(
-            api, timeframe=args.timeframe, aggregation=args.aggregation,
-            only_names=args.only_vms, only_storage=args.only_storage)
+        d = DataFetcher(api)
+        d.set_timeframe(args.timeframe)
+        d.set_aggregation(args.aggregation)
+        if args.only_vms:
+            d.limit_vms(args.only_vms)
+        if args.only_storage:
+            d.limit_storage(args.only_storage)
+        vms, crap = d.fetch()
 
         if crap:
             print_ignored(vms, crap, top=args.top)
