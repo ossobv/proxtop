@@ -420,8 +420,9 @@ class Proxtop(object):
             'hostname', action='store',
             help='Use this API hostname (e.g. proxmox.example.com[:443])')
         parser.add_argument(
-            'username', action='store',
-            help='Use this API username (e.g. monitor@pve)')
+            'username', action='store', help=(
+                'Use this API username (e.g. monitor@pve, requires VM.Audit '
+                'permissions (PVEAuditor role))'))
         parser.add_argument(
             '-T', '--top', default=8, action='store', type=int,
             help='Limit results to TOP VMs')
