@@ -1,5 +1,7 @@
-proxtop :: Proxmox resource monitor
-===================================
+|proxtop|
+=========
+
+*Proxmox resource monitor*
 
 |pypi_version| |pypi_downloads|
 
@@ -136,3 +138,6 @@ Possible future enhancements:
 
 .. |pypi_downloads| image:: https://img.shields.io/pypi/dm/proxtop.svg
     :target: https://pypi.python.org/pypi/proxtop
+
+.. |proxtop| image:: assets/proxtop_head.png
+    :alt: proxtop
