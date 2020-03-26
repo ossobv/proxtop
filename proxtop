@@ -22,7 +22,7 @@ from proxmoxer import ProxmoxAPI, ResourceException
 from time import time
 
 __author__ = 'Walter Doekes'
-__copyright__ = 'Copyright (C) Walter Doekes, OSSO B.V. 2015-2019'
+__copyright__ = 'Copyright (C) Walter Doekes, OSSO B.V. 2015-2020'
 __licence__ = 'GPLv3+'
 __version__ = '0.3.1'
 
@@ -50,6 +50,32 @@ except ImportError:
         urllib3.disable_warnings = dummy_func
         urllib3.exceptions.InsecureRequestWarning = DummyException
         requests.packages = dummy_packages
+
+# It's nice that urllib3 and requests show SNIMissingWarning and
+# InsecurePlatformWarning warnings, but we don't need them more than
+# once.
+warnings.simplefilter('once')
+
+# Import _after_ warnings fix. Indented against PEP E402.
+if True:
+    from proxmoxer.backends import https as proxmoxer_https
+
+    class ProxmoxerHttpsBackend(proxmoxer_https.Backend):
+        """
+        Alter proxmoxer.https.Backend.get_session to Connection:close.
+
+        This "fixes" these warnings:
+
+            proxtop:487: ResourceWarning: unclosed
+              <ssl.SSLSocket fd=3, family=AddressFamily.AF_INET,
+              type=SocketKind.SOCK_STREAM, proto=6, laddr=(), raddr=()>
+        """
+        def get_session(self):
+            session = super().get_session()
+            session.headers['Connection'] = 'close'
+            return session
+
+    proxmoxer_https.Backend = ProxmoxerHttpsBackend  # Monkey Patch
 
 
 def humanize(multiplier, units):
@@ -459,11 +485,6 @@ class Proxtop(object):
             args.password = defaults['password']
         else:
             args.password = getpass('Password:')
-
-        # It's nice that urllib3 and requests show SNIMissingWarning and
-        # InsecurePlatformWarning warnings, but we don't need them more than
-        # once.
-        warnings.simplefilter('once')
 
         # Log in, get the data, display it.
         api = ProxmoxAPI(hostname, port=port, user=args.username,
