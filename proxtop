@@ -290,6 +290,7 @@ class DataFetcher(object):
             if (len(median) % 2) == 1:
                 median = median[half]
             else:
+                assert half != 0, (median, half, item, data)
                 median = (median[half] + median[half - 1]) / 2.0
 
             valid, ignored = checking_foreach(data, item)
