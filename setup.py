@@ -9,7 +9,7 @@ setup(
     name='proxtop',
     version='0.3.1',
     scripts=['proxtop'],
-    data_files=[('', ['LICENSE.txt', 'README.rst'])],
+    data_files=[('share/doc/proxtop', ['LICENSE.txt', 'README.rst'])],
     description='Proxmox resource monitor',
     long_description=long_description,
     author='Walter Doekes, OSSO B.V.',
@@ -25,6 +25,7 @@ setup(
         'Operating System :: POSIX :: Linux',
         'Programming Language :: Python :: 2.7',
         'Programming Language :: Python :: 3',
+        'Topic :: System :: Clustering',
         'Topic :: System :: Monitoring',
     ],
     install_requires=[
