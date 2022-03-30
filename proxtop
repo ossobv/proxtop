@@ -286,28 +286,35 @@ class DataFetcher(object):
 
         for item, humanize_func in ITEMS:
             median = list(sorted([i[item] for i in data if item in i]))
-            half = len(median) // 2
-            if (len(median) % 2) == 1:
-                median = median[half]
+            if median:
+                half = len(median) // 2
+                if (len(median) % 2) == 1:
+                    median = median[half]
+                else:
+                    assert half != 0, (median, half, item, data)
+                    median = (median[half] + median[half - 1]) / 2.0
+                valid, ignored = checking_foreach(data, item)
+                if not valid:
+                    sys.stderr.write(
+                        'No sane RRD %s values for %s\n' % (item, vm['name']))
+                    valid = [0]
+                if ignored:
+                    if vm['name'] not in self._crap:
+                        self._crap[vm['name']] = []
+                    for value in ignored:
+                        self._crap[vm['name']].append((item, value))
             else:
-                assert half != 0, (median, half, item, data)
-                median = (median[half] + median[half - 1]) / 2.0
-
-            valid, ignored = checking_foreach(data, item)
-            if not valid:
                 sys.stderr.write(
-                    'No sane RRD %s values for %s\n' % (item, vm['name']))
+                    'No RRD %s values at all for %s (%r)\n' % (
+                        item, vm['name'], data))
+                median = 0
                 valid = [0]
+
             totals[item] = {
                 'max': max(valid),
                 'med': median,
                 'avg': sum(valid) / float(len(valid)),
             }
-            if ignored:
-                if vm['name'] not in self._crap:
-                    self._crap[vm['name']] = []
-                for value in ignored:
-                    self._crap[vm['name']].append((item, value))
 
         self._vms.append((vm, totals))
 
