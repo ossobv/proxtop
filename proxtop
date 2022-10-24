@@ -90,9 +90,9 @@ def humanize(multiplier, units):
         return '%6.1f %s' % (num, unit)
     return wrapped
 humanize_bytes_per_second = humanize(  # noqa
-    8, ['TiB/s', 'GiB/s', 'MiB/s', 'KiB/s', 'B/s  '])
+    1, ['TiB/s', 'GiB/s', 'MiB/s', 'KiB/s', 'B/s  '])
 humanize_bits_per_second = humanize(
-    1, ['Tbps ', 'Gbps ', 'Mbps ', 'Kbps ', 'bps  '])
+    8, ['Tbps ', 'Gbps ', 'Mbps ', 'Kbps ', 'bps  '])
 humanize_percentage = (
     lambda x: '%6d %%    ' % (x * 100))  # align with humanize
 
