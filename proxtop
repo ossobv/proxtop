@@ -348,7 +348,7 @@ class DataFetcher(object):
 def print_ignored(vms, crap, top):
     print('IGNORED DATA: %d/%d' % (len(crap), len(vms)))
     print('------------------')
-    crap = crap.items()
+    crap = list(crap.items())
     crap.sort(key=(lambda x: len(x[1])), reverse=True)
     for i, (vm_name, values) in enumerate(crap[0:top]):
         print('#%d: %s  %r' %
